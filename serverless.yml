@@ -59,7 +59,7 @@ functions:
 
   # Generación de diagramas
   generateDiagram:
-    handler: diagram_service.generate  # Cambiado aquí
+    handler: diagrams_handler.generate  # Corregido: apunta al archivo correcto
     timeout: 30
     events:
       - http:
@@ -72,7 +72,7 @@ functions:
 
   # Obtener diagramas del usuario
   getUserDiagrams:
-    handler: diagram_service.get_user_diagrams  # Cambiado aquí
+    handler: diagrams_handler.get_user_diagrams  # Corregido: apunta al archivo correcto
     events:
       - http:
           path: diagrams/user

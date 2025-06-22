@@ -11,7 +11,7 @@ import sys
 from decimal import Decimal
 
 # Importar Diagrams
-from diagrams import Diagram, Cluster, Edge
+from diagrams_handler import Diagram, Cluster, Edge
 from diagrams.aws.compute import EC2, Lambda, ECS
 from diagrams.aws.database import RDS, DynamodbTable
 from diagrams.aws.network import ELB, Route53, CloudFront

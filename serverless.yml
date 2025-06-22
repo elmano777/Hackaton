@@ -13,6 +13,8 @@ custom:
     strip: false
     noDeps: []
     invalidateCaches: true
+    # Asegurar que todas las dependencias estén disponibles
+    layer: false
     # Incluir dependencias del sistema para graphviz
     pipCmdExtraArgs:
       - "--no-cache-dir"
@@ -100,11 +102,12 @@ functions:
     timeout: 30
     memorySize: 1024
     environment:
-      # Variables adicionales para graphviz
+      # Variables adicionales para graphviz y diagrams
       PATH: "/opt/bin:/usr/local/bin:/usr/bin/:/bin:/opt/nodejs/bin:/var/lang/bin"
       LD_LIBRARY_PATH: "/opt/lib:/var/lang/lib"
       FONTCONFIG_PATH: "/tmp"
       XDG_DATA_HOME: "/tmp"
+      PYTHONPATH: "/var/task:/opt/python/lib/python3.12/site-packages"
     events:
       - http:
           path: diagrams/generate

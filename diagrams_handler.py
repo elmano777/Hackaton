@@ -70,13 +70,15 @@ def execute_diagram_code(code, diagram_name, temp_dir):
         with open(code_file, 'w') as f:
             f.write(code)
         
-        # Ejecutar el código
-        result = subprocess.run([
-            sys.executable, code_file
-        ], capture_output=True, text=True, cwd=temp_dir)
+        # Importar y ejecutar el código en el mismo proceso
+        import importlib.util
+        import sys
         
-        if result.returncode != 0:
-            return None, f"Error al ejecutar el diagrama: {result.stderr}"
+        # Cargar el módulo desde el archivo
+        spec = importlib.util.spec_from_file_location(diagram_name, code_file)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[diagram_name] = module
+        spec.loader.exec_module(module)
         
         # Buscar el archivo PNG generado
         png_file = os.path.join(temp_dir, f"{diagram_name}.png")
@@ -93,9 +95,16 @@ def generate(event, context):
     try:
         print(f"Event completo: {json.dumps(event, cls=DecimalEncoder)}")
         
+        # Verificar que el evento tenga el contexto de autorización
+        if not event.get('requestContext') or not event['requestContext'].get('authorizer'):
+            print("Error: No se encontró contexto de autorización")
+            return response(401, {'error': 'No autorizado - token requerido'})
+        
         # Obtener información del usuario del contexto del authorizer
         user_id = event['requestContext']['authorizer']['user_id']
         user_email = event['requestContext']['authorizer']['email']
+        
+        print(f"Usuario autenticado: {user_email} (ID: {user_id})")
         
         # Debug: Imprimir el body raw
         raw_body = event.get('body', '')
@@ -210,6 +219,9 @@ def generate(event, context):
                 'message': 'Diagrama generado exitosamente'
             })
             
+    except KeyError as e:
+        print(f"Error de clave faltante: {e}")
+        return response(400, {'error': f'Datos requeridos faltantes: {str(e)}'})
     except Exception as e:
         print(f"Error en generate: {e}")
         import traceback

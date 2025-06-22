@@ -6,24 +6,31 @@ plugins:
 
 custom:
   pythonRequirements:
-    dockerizePip: true
+    dockerizePip: true  # Obligatorio para diagrams
+    dockerImage: public.ecr.aws/lambda/python:3.12  # Imagen específica
     zip: true
-    slim: true
+    slim: false  # Cambiado a false para evitar eliminar dependencias necesarias
     strip: false
-    # Remover las dependencias que queremos incluir
-    noDeps: []  # Cambiado: permitir todas las dependencias
+    noDeps: []
     invalidateCaches: true
-    # Configuraciones adicionales para diagrams
+    # Incluir dependencias del sistema para graphviz
     pipCmdExtraArgs:
       - "--no-cache-dir"
+      - "--platform=linux_x86_64"
+      - "--implementation=cp"
+      - "--python-version=3.12"
+      - "--only-binary=:all:"
     pythonBin: python3
-    # Usar layer para dependencias pesadas
-    layer:
-      name: ${self:service}-${self:provider.stage}-python-requirements
-      description: Python requirements layer
-      compatibleRuntimes:
-        - python3.12
-      retain: false
+    # No usar layer para diagrams, incluir en el deployment package
+    # layer:
+    #   name: ${self:service}-${self:provider.stage}-python-requirements
+    #   description: Python requirements layer
+    #   compatibleRuntimes:
+    #     - python3.12
+    #   retain: false
+    # Instalar graphviz como dependencia del sistema
+    dockerExtraFiles:
+      - "requirements.txt"
 
 provider:
   name: aws
@@ -36,11 +43,14 @@ provider:
     USERS_TABLE: utec-users-${self:provider.stage}
     JWT_SECRET: ${env:JWT_SECRET}
     CORS_ORIGIN: ${env:CORS_ORIGIN, '*'}
+    # Variables necesarias para graphviz
+    FONTCONFIG_PATH: "/tmp"
+    XDG_DATA_HOME: "/tmp"
   iam:
     role: arn:aws:iam::409362080365:role/LabRole
-  # Referenciar el layer automáticamente
-  layers:
-    - {Ref: PythonRequirementsLambdaLayer}
+  # Comentar el layer por ahora
+  # layers:
+  #   - {Ref: PythonRequirementsLambdaLayer}
 
 functions:
   # Autenticación
@@ -91,8 +101,10 @@ functions:
     memorySize: 1024
     environment:
       # Variables adicionales para graphviz
-      PATH: "/opt/bin:/usr/local/bin:/usr/bin/:/bin:/opt/nodejs/bin"
-      LD_LIBRARY_PATH: "/opt/lib"
+      PATH: "/opt/bin:/usr/local/bin:/usr/bin/:/bin:/opt/nodejs/bin:/var/lang/bin"
+      LD_LIBRARY_PATH: "/opt/lib:/var/lang/lib"
+      FONTCONFIG_PATH: "/tmp"
+      XDG_DATA_HOME: "/tmp"
     events:
       - http:
           path: diagrams/generate

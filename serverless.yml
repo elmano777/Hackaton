@@ -10,10 +10,20 @@ custom:
     zip: true
     slim: true
     strip: false
-    noDeps:
-      - boto3
-      - botocore
+    # Remover las dependencias que queremos incluir
+    noDeps: []  # Cambiado: permitir todas las dependencias
     invalidateCaches: true
+    # Configuraciones adicionales para diagrams
+    pipCmdExtraArgs:
+      - "--no-cache-dir"
+    pythonBin: python3
+    # Usar layer para dependencias pesadas
+    layer:
+      name: ${self:service}-${self:provider.stage}-python-requirements
+      description: Python requirements layer
+      compatibleRuntimes:
+        - python3.12
+      retain: false
 
 provider:
   name: aws
@@ -28,6 +38,9 @@ provider:
     CORS_ORIGIN: ${env:CORS_ORIGIN, '*'}
   iam:
     role: arn:aws:iam::409362080365:role/LabRole
+  # Referenciar el layer automáticamente
+  layers:
+    - {Ref: PythonRequirementsLambdaLayer}
 
 functions:
   # Autenticación
@@ -71,11 +84,15 @@ functions:
             name: authorizerFunc
             resultTtlInSeconds: 0
 
-  # Generación de diagramas
+  # Generación de diagramas - Configuración especial
   generateDiagram:
     handler: diagrams_handler.generate
     timeout: 30
-    memorySize: 1024  # Incrementar memoria para las dependencias
+    memorySize: 1024
+    environment:
+      # Variables adicionales para graphviz
+      PATH: "/opt/bin:/usr/local/bin:/usr/bin/:/bin:/opt/nodejs/bin"
+      LD_LIBRARY_PATH: "/opt/lib"
     events:
       - http:
           path: diagrams/generate

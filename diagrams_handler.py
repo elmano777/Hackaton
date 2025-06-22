@@ -88,14 +88,48 @@ def execute_diagram_code(code, diagram_name, temp_dir):
 
 def generate(event, context):
     try:
+        print(f"Event completo: {json.dumps(event, cls=DecimalEncoder)}")
+        
         # Obtener información del usuario del contexto del authorizer
         user_id = event['requestContext']['authorizer']['user_id']
         user_email = event['requestContext']['authorizer']['email']
         
-        body = json.loads(event['body'])
+        # Debug: Imprimir el body raw
+        raw_body = event.get('body', '')
+        print(f"Raw body: {raw_body}")
+        print(f"Body type: {type(raw_body)}")
+        print(f"Body length: {len(raw_body) if raw_body else 0}")
+        
+        # Verificar si el body existe y no está vacío
+        if not raw_body:
+            return response(400, {'error': 'Request body is empty'})
+        
+        # Intentar parsear el JSON con mejor manejo de errores
+        try:
+            # Si el body es string, parsearlo
+            if isinstance(raw_body, str):
+                body = json.loads(raw_body)
+            else:
+                body = raw_body
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error: {e}")
+            print(f"Error at position: {e.pos}")
+            print(f"Error context: {raw_body[max(0, e.pos-50):e.pos+50]}")
+            return response(400, {
+                'error': 'Invalid JSON format',
+                'details': str(e),
+                'position': e.pos
+            })
+        
+        print(f"Parsed body: {json.dumps(body, cls=DecimalEncoder)}")
+        
         code = body.get('code')
         diagram_type = body.get('type', 'aws')
         diagram_name = body.get('name', f'diagram_{uuid.uuid4().hex[:8]}')
+        
+        print(f"Code length: {len(code) if code else 0}")
+        print(f"Diagram type: {diagram_type}")
+        print(f"Diagram name: {diagram_name}")
         
         # Validar entrada
         is_valid, error_msg = validate_diagram_code(code, diagram_type)
@@ -104,11 +138,16 @@ def generate(event, context):
         
         # Crear directorio temporal
         with tempfile.TemporaryDirectory() as temp_dir:
+            print(f"Using temp directory: {temp_dir}")
+            
             # Generar diagrama
             image_data, error = execute_diagram_code(code, diagram_name, temp_dir)
             
             if error:
+                print(f"Diagram execution error: {error}")
                 return response(400, {'error': error})
+            
+            print(f"Image generated successfully, size: {len(image_data)} bytes")
             
             # Generar ID único para el diagrama
             diagram_id = str(uuid.uuid4())
@@ -122,6 +161,7 @@ def generate(event, context):
                 Body=code,
                 ContentType='text/plain'
             )
+            print(f"Code uploaded to S3: {code_key}")
             
             # Subir imagen a S3
             image_key = f"{user_id}/{diagram_type}/{diagram_id}/diagram.png"
@@ -131,6 +171,7 @@ def generate(event, context):
                 Body=image_data,
                 ContentType='image/png'
             )
+            print(f"Image uploaded to S3: {image_key}")
             
             # Subir metadata
             metadata = {
@@ -151,6 +192,7 @@ def generate(event, context):
                 Body=json.dumps(metadata, cls=DecimalEncoder),
                 ContentType='application/json'
             )
+            print(f"Metadata uploaded to S3: {metadata_key}")
             
             # Generar URL presignada para la imagen
             image_url = s3_client.generate_presigned_url(

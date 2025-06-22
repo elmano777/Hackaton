@@ -1,6 +1,20 @@
 org: rolandodiaz
 service: utec-diagram-backend
 
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
+    zip: true
+    slim: true
+    strip: false
+    noDeps:
+      - boto3
+      - botocore
+    invalidateCaches: true
+
 provider:
   name: aws
   runtime: python3.12
@@ -59,8 +73,9 @@ functions:
 
   # Generación de diagramas
   generateDiagram:
-    handler: diagrams_handler.generate  # Corregido: apunta al archivo correcto
+    handler: diagrams_handler.generate
     timeout: 30
+    memorySize: 1024  # Incrementar memoria para las dependencias
     events:
       - http:
           path: diagrams/generate
@@ -72,7 +87,7 @@ functions:
 
   # Obtener diagramas del usuario
   getUserDiagrams:
-    handler: diagrams_handler.get_user_diagrams  # Corregido: apunta al archivo correcto
+    handler: diagrams_handler.get_user_diagrams
     events:
       - http:
           path: diagrams/user

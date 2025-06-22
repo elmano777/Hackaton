@@ -40,7 +40,7 @@ Este proyecto es un backend serverless para la generación y gestión de diagram
 
 1. Instala dependencias:
    ```bash
-   pip install -r requirements.txt
+   pip3 install -r requirements.txt -t .
    npm install -g serverless
    ```
 

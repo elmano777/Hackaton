@@ -15,8 +15,6 @@ provider:
   iam:
     role: arn:aws:iam::409362080365:role/LabRole
 
-
-
 functions:
   # Autenticación
   login:
@@ -126,7 +124,6 @@ resources:
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
-            BillingMode: PAY_PER_REQUEST
         BillingMode: PAY_PER_REQUEST
         PointInTimeRecoverySpecification:
           PointInTimeRecoveryEnabled: true

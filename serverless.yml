@@ -1,33 +1,16 @@
 org: rolandodiaz
 service: utec-diagram-backend
 
-frameworkVersion: '3'
-
 provider:
   name: aws
-  runtime: python3.9
-  region: us-east-1
-  stage: ${opt:stage, 'dev'}
+  runtime: python3.12
   environment:
-    STAGE: ${self:provider.stage}
-    S3_BUCKET: utec-diagrams-${self:provider.stage}
+    STAGE: ${sls:stage}
+    S3_BUCKET: utec-diagrams-${sls:stage}
     JWT_SECRET: ${env:JWT_SECRET}
     CORS_ORIGIN: ${env:CORS_ORIGIN, '*'}
   iam:
-    role:
-      statements:
-        - Effect: Allow
-          Action:
-            - s3:GetObject
-            - s3:PutObject
-            - s3:DeleteObject
-          Resource: 
-            - "arn:aws:s3:::utec-diagrams-${self:provider.stage}/*"
-        - Effect: Allow
-          Action:
-            - s3:ListBucket
-          Resource: 
-            - "arn:aws:s3:::utec-diagrams-${self:provider.stage}"
+    role: arn:aws:iam::409362080365:role/LabRole
 
 functions:
   # Autenticación
@@ -56,6 +39,40 @@ functions:
               - Content-Type
               - Authorization
             allowCredentials: false
+
+  # Obtener perfil de usuario
+  getProfile:
+    handler: handlers/auth.get_profile
+    events:
+      - http:
+          path: auth/profile
+          method: get
+          cors:
+            origin: ${self:provider.environment.CORS_ORIGIN}
+            headers:
+              - Content-Type
+              - Authorization
+            allowCredentials: false
+          authorizer:
+            name: authorizerFunc
+            resultTtlInSeconds: 0
+
+  # Actualizar perfil de usuario
+  updateProfile:
+    handler: handlers/auth.update_profile
+    events:
+      - http:
+          path: auth/profile
+          method: put
+          cors:
+            origin: ${self:provider.environment.CORS_ORIGIN}
+            headers:
+              - Content-Type
+              - Authorization
+            allowCredentials: false
+          authorizer:
+            name: authorizerFunc
+            resultTtlInSeconds: 0
 
   # Generación de diagramas
   generateDiagram:
@@ -117,8 +134,29 @@ resources:
                 - "*"
               MaxAge: 3000
 
-plugins:
-  - serverless-python-requirements
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: utec-users-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: email
+            AttributeType: S
+          - AttributeName: user_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: email
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: UserIdIndex
+            KeySchema:
+              - AttributeName: user_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            BillingMode: PAY_PER_REQUEST
+        BillingMode: PAY_PER_REQUEST
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
 
 custom:
   pythonRequirements:

@@ -44,13 +44,13 @@ Este proyecto es un backend serverless para la generación y gestión de diagram
    npm install -g serverless
    ```
 
-2. Configura tus variables de entorno en AWS o en un archivo `.env`.
+2. Configura tus variables de entorno en AWS
+```bash
+export JWT_SECRET="mi_clave_super_secreta_para_hackathon_2025"
+export CORS_ORIGIN="*"
+```
 
 3. Despliega con Serverless Framework:
    ```bash
    serverless deploy --stage dev
    ```
-
-## Ejemplo de uso
-
-### Registro de usuario

@@ -65,31 +65,47 @@ def validate_diagram_code(code, diagram_type):
 def execute_diagram_code(code, diagram_name, temp_dir):
     """Ejecuta el código de diagrama y genera la imagen"""
     try:
+        # Reemplazar dinámicamente el parámetro 'outdir' si no está presente
+        if "with Diagram(" in code and "outdir=" not in code:
+            def add_outdir(match):
+                inside = match.group(1)
+                if inside.strip():
+                    return f"with Diagram({inside}, outdir=r'{temp_dir}'"
+                else:
+                    return f"with Diagram(outdir=r'{temp_dir}'"
+            import re
+            code = re.sub(r"with Diagram\((.*?)\)", add_outdir, code)
+
         # Crear archivo temporal con el código
         code_file = os.path.join(temp_dir, f"{diagram_name}.py")
         with open(code_file, 'w') as f:
             f.write(code)
-        
-        # Importar y ejecutar el código en el mismo proceso
+
+        # Cargar y ejecutar el código en un módulo temporal
         import importlib.util
         import sys
-        
-        # Cargar el módulo desde el archivo
+
         spec = importlib.util.spec_from_file_location(diagram_name, code_file)
         module = importlib.util.module_from_spec(spec)
         sys.modules[diagram_name] = module
         spec.loader.exec_module(module)
-        
+
         # Buscar el archivo PNG generado
         png_file = os.path.join(temp_dir, f"{diagram_name}.png")
         if os.path.exists(png_file):
             with open(png_file, 'rb') as f:
                 return f.read(), None
         else:
+            # Buscar cualquier archivo .png en caso el nombre no coincida
+            for fname in os.listdir(temp_dir):
+                if fname.endswith(".png"):
+                    with open(os.path.join(temp_dir, fname), 'rb') as f:
+                        return f.read(), None
             return None, "No se pudo generar la imagen del diagrama"
-            
+
     except Exception as e:
         return None, f"Error interno: {str(e)}"
+
 
 def generate(event, context):
     try:

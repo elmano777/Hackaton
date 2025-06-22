@@ -1,0 +1,126 @@
+org: rolandodiaz
+service: utec-diagram-backend
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.9
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  environment:
+    STAGE: ${self:provider.stage}
+    S3_BUCKET: utec-diagrams-${self:provider.stage}
+    JWT_SECRET: ${env:JWT_SECRET}
+    CORS_ORIGIN: ${env:CORS_ORIGIN, '*'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:DeleteObject
+          Resource: 
+            - "arn:aws:s3:::utec-diagrams-${self:provider.stage}/*"
+        - Effect: Allow
+          Action:
+            - s3:ListBucket
+          Resource: 
+            - "arn:aws:s3:::utec-diagrams-${self:provider.stage}"
+
+functions:
+  # Autenticación
+  login:
+    handler: handlers/auth.login
+    events:
+      - http:
+          path: auth/login
+          method: post
+          cors:
+            origin: ${self:provider.environment.CORS_ORIGIN}
+            headers:
+              - Content-Type
+              - Authorization
+            allowCredentials: false
+
+  signup:
+    handler: handlers/auth.signup
+    events:
+      - http:
+          path: auth/signup
+          method: post
+          cors:
+            origin: ${self:provider.environment.CORS_ORIGIN}
+            headers:
+              - Content-Type
+              - Authorization
+            allowCredentials: false
+
+  # Generación de diagramas
+  generateDiagram:
+    handler: handlers/diagrams.generate
+    timeout: 30
+    layers:
+      - arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p39-Pillow:1
+    events:
+      - http:
+          path: diagrams/generate
+          method: post
+          cors:
+            origin: ${self:provider.environment.CORS_ORIGIN}
+            headers:
+              - Content-Type
+              - Authorization
+            allowCredentials: false
+          authorizer:
+            name: authorizerFunc
+            resultTtlInSeconds: 0
+
+  # Obtener diagramas del usuario
+  getUserDiagrams:
+    handler: handlers/diagrams.get_user_diagrams
+    events:
+      - http:
+          path: diagrams/user
+          method: get
+          cors:
+            origin: ${self:provider.environment.CORS_ORIGIN}
+            headers:
+              - Content-Type
+              - Authorization
+            allowCredentials: false
+          authorizer:
+            name: authorizerFunc
+            resultTtlInSeconds: 0
+
+  # Authorizer personalizado
+  authorizerFunc:
+    handler: handlers/auth.authorizer
+
+resources:
+  Resources:
+    DiagramsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: utec-diagrams-${self:provider.stage}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - "*"
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+                - DELETE
+              AllowedOrigins:
+                - "*"
+              MaxAge: 3000
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
+    pythonBin: python3

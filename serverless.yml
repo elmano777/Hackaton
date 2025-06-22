@@ -4,116 +4,89 @@ service: utec-diagram-backend
 provider:
   name: aws
   runtime: python3.12
+  stage: ${opt:stage, 'dev'}
+  region: us-east-1
   environment:
-    STAGE: ${sls:stage}
-    S3_BUCKET: utec-diagrams-${sls:stage}
+    STAGE: ${self:provider.stage}
+    S3_BUCKET: utec-diagrams-${self:provider.stage}
+    USERS_TABLE: utec-users-${self:provider.stage}
     JWT_SECRET: ${env:JWT_SECRET}
     CORS_ORIGIN: ${env:CORS_ORIGIN, '*'}
   iam:
     role: arn:aws:iam::409362080365:role/LabRole
 
+
+
 functions:
   # Autenticación
   login:
-    handler: handlers/auth.login
+    handler: auth.login
     events:
       - http:
           path: auth/login
           method: post
-          cors:
-            origin: ${self:provider.environment.CORS_ORIGIN}
-            headers:
-              - Content-Type
-              - Authorization
-            allowCredentials: false
+          cors: true
 
   signup:
-    handler: handlers/auth.signup
+    handler: auth.signup
     events:
       - http:
           path: auth/signup
           method: post
-          cors:
-            origin: ${self:provider.environment.CORS_ORIGIN}
-            headers:
-              - Content-Type
-              - Authorization
-            allowCredentials: false
+          cors: true
 
   # Obtener perfil de usuario
   getProfile:
-    handler: handlers/auth.get_profile
+    handler: auth.get_profile
     events:
       - http:
           path: auth/profile
           method: get
-          cors:
-            origin: ${self:provider.environment.CORS_ORIGIN}
-            headers:
-              - Content-Type
-              - Authorization
-            allowCredentials: false
+          cors: true
           authorizer:
             name: authorizerFunc
             resultTtlInSeconds: 0
 
   # Actualizar perfil de usuario
   updateProfile:
-    handler: handlers/auth.update_profile
+    handler: auth.update_profile
     events:
       - http:
           path: auth/profile
           method: put
-          cors:
-            origin: ${self:provider.environment.CORS_ORIGIN}
-            headers:
-              - Content-Type
-              - Authorization
-            allowCredentials: false
+          cors: true
           authorizer:
             name: authorizerFunc
             resultTtlInSeconds: 0
 
   # Generación de diagramas
   generateDiagram:
-    handler: handlers/diagrams.generate
+    handler: diagrams.generate
     timeout: 30
-    layers:
-      - arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p39-Pillow:1
     events:
       - http:
           path: diagrams/generate
           method: post
-          cors:
-            origin: ${self:provider.environment.CORS_ORIGIN}
-            headers:
-              - Content-Type
-              - Authorization
-            allowCredentials: false
+          cors: true
           authorizer:
             name: authorizerFunc
             resultTtlInSeconds: 0
 
   # Obtener diagramas del usuario
   getUserDiagrams:
-    handler: handlers/diagrams.get_user_diagrams
+    handler: diagrams.get_user_diagrams
     events:
       - http:
           path: diagrams/user
           method: get
-          cors:
-            origin: ${self:provider.environment.CORS_ORIGIN}
-            headers:
-              - Content-Type
-              - Authorization
-            allowCredentials: false
+          cors: true
           authorizer:
             name: authorizerFunc
             resultTtlInSeconds: 0
 
   # Authorizer personalizado
   authorizerFunc:
-    handler: handlers/auth.authorizer
+    handler: auth.authorizer
 
 resources:
   Resources:
@@ -157,8 +130,3 @@ resources:
         BillingMode: PAY_PER_REQUEST
         PointInTimeRecoverySpecification:
           PointInTimeRecoveryEnabled: true
-
-custom:
-  pythonRequirements:
-    dockerizePip: true
-    pythonBin: python3

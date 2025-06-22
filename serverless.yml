@@ -74,6 +74,8 @@ functions:
   # Generación de diagramas
   generateDiagram:
     handler: diagrams_handler.generate
+    layers:
+      - arn:aws:lambda:us-east-1:347034527139:layer:graphviz:1
     timeout: 30
     memorySize: 1024  # Incrementar memoria para las dependencias
     events:

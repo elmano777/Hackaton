@@ -19,6 +19,9 @@ from diagrams.aws.storage import S3
 from diagrams.aws.analytics import EMR, Redshift
 from diagrams.aws.integration import SQS, SNS
 from diagrams.aws.security import IAM, Cognito
+import sys
+print("DEBUG sys.path:", sys.path)
+
 
 s3_client = boto3.client('s3')
 S3_BUCKET = os.environ.get('S3_BUCKET')

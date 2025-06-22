@@ -6,6 +6,7 @@ import os
 import uuid
 from datetime import datetime, timedelta
 from botocore.exceptions import ClientError
+from decimal import Decimal
 
 # DynamoDB client
 dynamodb = boto3.resource('dynamodb')
@@ -18,12 +19,37 @@ def cors_headers():
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
     }
 
+# Custom JSON encoder para manejar Decimal
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            # Convertir Decimal a int o float según corresponda
+            if obj % 1 == 0:
+                return int(obj)
+            else:
+                return float(obj)
+        return super(DecimalEncoder, self).default(obj)
+
 def response(status_code, body):
     return {
         'statusCode': status_code,
         'headers': cors_headers(),
-        'body': json.dumps(body)
+        'body': json.dumps(body, cls=DecimalEncoder)  # Usar el encoder personalizado
     }
+
+# Función helper para convertir Decimals recursivamente
+def convert_decimals(obj):
+    """Convierte objetos Decimal a int/float recursivamente"""
+    if isinstance(obj, list):
+        return [convert_decimals(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {key: convert_decimals(value) for key, value in obj.items()}
+    elif isinstance(obj, Decimal):
+        if obj % 1 == 0:
+            return int(obj)
+        else:
+            return float(obj)
+    return obj
 
 def validate_email(email):
     """Validación básica de email"""
@@ -39,7 +65,11 @@ def get_user_by_email(email):
     """Obtiene un usuario por email desde DynamoDB"""
     try:
         response = users_table.get_item(Key={'email': email})
-        return response.get('Item')
+        user = response.get('Item')
+        if user:
+            # Convertir Decimals antes de devolver
+            return convert_decimals(user)
+        return None
     except ClientError as e:
         print(f"Error al obtener usuario: {e}")
         return None
@@ -64,7 +94,7 @@ def create_user(email, name, hashed_password):
             ConditionExpression='attribute_not_exists(email)'  # Evita duplicados
         )
         
-        return user_data
+        return convert_decimals(user_data)
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
             return None  # Usuario ya existe
@@ -191,12 +221,24 @@ def login(event, context):
 def get_profile(event, context):
     """Obtiene el perfil del usuario autenticado"""
     try:
-        # Obtener información del usuario del contexto del authorizer
-        user_email = event['requestContext']['authorizer']['email']
+        print(f"Event context: {json.dumps(event.get('requestContext', {}), cls=DecimalEncoder)}")  # Debug log
         
+        # Obtener información del usuario del contexto del authorizer
+        authorizer_context = event.get('requestContext', {}).get('authorizer', {})
+        print(f"Authorizer context: {authorizer_context}")
+        
+        user_email = authorizer_context.get('email')
+        if not user_email:
+            print("Email no encontrado en el contexto del authorizer")
+            return response(401, {'error': 'Usuario no autenticado'})
+        
+        print(f"Buscando usuario: {user_email}")
         user = get_user_by_email(user_email)
         if not user:
+            print(f"Usuario no encontrado en DB: {user_email}")
             return response(404, {'error': 'Usuario no encontrado'})
+        
+        print(f"Usuario encontrado: {user}")  # Debug log
         
         return response(200, {
             'user': {
@@ -211,6 +253,8 @@ def get_profile(event, context):
         
     except Exception as e:
         print(f"Error en get_profile: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return response(500, {'error': 'Error interno del servidor'})
 
 def update_profile(event, context):
@@ -249,20 +293,39 @@ def update_profile(event, context):
 def authorizer(event, context):
     """Lambda Authorizer para validar JWT tokens"""
     try:
-        token = event['authorizationToken']
+        print(f"Authorizer event: {json.dumps(event, cls=DecimalEncoder)}")  # Debug log
+        
+        # Obtener token de diferentes posibles ubicaciones
+        token = None
+        
+        # Método 1: authorizationToken (para custom authorizer)
+        if 'authorizationToken' in event:
+            token = event['authorizationToken']
+        
+        # Método 2: headers (para request authorizer)
+        elif 'headers' in event:
+            auth_header = event['headers'].get('Authorization') or event['headers'].get('authorization')
+            if auth_header:
+                token = auth_header
+        
+        print(f"Token extraído: {token}")  # Debug log
         
         if not token or not token.startswith('Bearer '):
+            print("Token no válido o missing")
             raise Exception('Unauthorized')
         
         # Extraer el token
         jwt_token = token.replace('Bearer ', '')
+        print(f"JWT Token: {jwt_token[:20]}...")  # Solo primeros 20 chars por seguridad
         
         # Verificar el token
         payload = jwt.decode(jwt_token, os.environ['JWT_SECRET'], algorithms=['HS256'])
+        print(f"Payload decodificado: {payload}")
         
         # Verificar si el usuario existe y está activo
         user = get_user_by_email(payload['email'])
         if not user or not user.get('is_active', True):
+            print(f"Usuario no encontrado o inactivo: {payload['email']}")
             raise Exception('Unauthorized')
         
         # Generar policy de autorización
@@ -285,11 +348,14 @@ def authorizer(event, context):
             }
         }
         
+        print("Autorización exitosa")
         return policy
         
-    except jwt.ExpiredSignatureError:
+    except jwt.ExpiredSignatureError as e:
+        print(f"Token expirado: {e}")
         raise Exception('Token expired')
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as e:
+        print(f"Token inválido: {e}")
         raise Exception('Invalid token')
     except Exception as e:
         print(f"Error en authorizer: {e}")

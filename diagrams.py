@@ -8,6 +8,7 @@ from io import BytesIO
 import tempfile
 import subprocess
 import sys
+from decimal import Decimal
 
 # Importar Diagrams
 from diagrams import Diagram, Cluster, Edge
@@ -29,11 +30,21 @@ def cors_headers():
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
     }
 
+# Custom JSON encoder para manejar Decimal
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            if obj % 1 == 0:
+                return int(obj)
+            else:
+                return float(obj)
+        return super(DecimalEncoder, self).default(obj)
+
 def response(status_code, body):
     return {
         'statusCode': status_code,
         'headers': cors_headers(),
-        'body': json.dumps(body)
+        'body': json.dumps(body, cls=DecimalEncoder)
     }
 
 def validate_diagram_code(code, diagram_type):
@@ -137,7 +148,7 @@ def generate(event, context):
             s3_client.put_object(
                 Bucket=S3_BUCKET,
                 Key=metadata_key,
-                Body=json.dumps(metadata),
+                Body=json.dumps(metadata, cls=DecimalEncoder),
                 ContentType='application/json'
             )
             
@@ -155,6 +166,9 @@ def generate(event, context):
             })
             
     except Exception as e:
+        print(f"Error en generate: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return response(500, {'error': f'Error interno: {str(e)}'})
 
 def get_user_diagrams(event, context):
@@ -204,4 +218,7 @@ def get_user_diagrams(event, context):
         return response(200, {'diagrams': diagrams})
         
     except Exception as e:
+        print(f"Error en get_user_diagrams: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return response(500, {'error': f'Error interno: {str(e)}'})

@@ -65,16 +65,16 @@ def validate_diagram_code(code, diagram_type):
 def execute_diagram_code(code, diagram_name, temp_dir):
     """Ejecuta el código de diagrama y genera la imagen"""
     try:
-        # Reemplazar dinámicamente el parámetro 'outdir' si no está presente
-        if "with Diagram(" in code and "outdir=" not in code:
-            def add_outdir(match):
+        # Reemplazar dinámicamente el parámetro 'filename' si no está presente
+        if "with Diagram(" in code and "filename=" not in code:
+            def add_filename(match):
                 inside = match.group(1)
                 if inside.strip():
-                    return f"with Diagram({inside}, outdir=r'{temp_dir}'"
+                    return f"with Diagram({inside}, filename=r'{os.path.join(temp_dir, diagram_name)}'"
                 else:
-                    return f"with Diagram(outdir=r'{temp_dir}'"
+                    return f"with Diagram(filename=r'{os.path.join(temp_dir, diagram_name)}'"
             import re
-            code = re.sub(r"with Diagram\((.*?)\)", add_outdir, code)
+            code = re.sub(r"with Diagram\((.*?)\)", add_filename, code)
 
         # Crear archivo temporal con el código
         code_file = os.path.join(temp_dir, f"{diagram_name}.py")
